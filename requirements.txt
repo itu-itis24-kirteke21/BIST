@@ -1,0 +1,6 @@
+# BIST 100 Profesyonel Analiz Sistemi - Gereksinimler
+# Kurulum: pip install -r requirements.txt
+
+yfinance>=0.2.28
+pandas>=2.0.0
+numpy>=1.24.0
