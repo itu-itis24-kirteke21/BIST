@@ -361,28 +361,46 @@ body {
 
 <script>
 // ============================================
-// VERİ YÜKLEME - bist_analysis_results.json dosyasını buraya yükleyin
+// VERİ YÜKLEME - bist_analysis_results.json dosyasını yükle & otomatik yenile
 // ============================================
-// Örnek veri yapısı (gerçek verileri Python scripti ile oluşturun):
 let stocksData = [];
+let autoRefreshTimer = null;
 
-// JSON dosyasını otomatik yükle
-try {
-  fetch('bist_analysis_results.json')
-    .then(r => r.json())
-    .then(data => { stocksData = data; init(); })
-    .catch(() => { 
-      // Demo veri (gerçek veri yoksa)
-      stocksData = [
-        {"code":"GARAN","name":"Garanti BBVA","sector":"Bankacılık","price":127.80,"change":-1.46,"technicalScore":35,"fundamentalScore":49,"totalScore":84,"sentiment":"positive","rsi":52.0,"macd":-1.162,"macd_signal":-2.123,"macd_hist":0.961,"ema20":128.29,"ema50":130.47,"bb_position":0.45,"vol_ratio":1.0,"range_position":25.5,"pe":4.43,"pb":1.10,"beta":0.51,"profit_margin":31.57,"roe":28.13,"debt_equity":0.0,"rec_mean":1.5,"wk_low":115.40,"wk_high":169.70,"reasons":["✅ RSI 52.0 güçlü momentum","✅ MACD histogram pozitif","❌ Fiyat EMA 50 altında","✅ F/K 4.4 ucuz","✅ ROE %28.1 güçlü","✅ Analist: Güçlü Al"],"analysis":"Garanti BBVA güçlü temel verilere sahip. F/K 4.4 ile değerlemesi makul. ROE %28.1 ile sektörün üzerinde."},
-        {"code":"ASELS","name":"Aselsan","sector":"Savunma","price":363.00,"change":4.69,"technicalScore":42,"fundamentalScore":34,"totalScore":76,"sentiment":"positive","rsi":55.0,"macd":-6.657,"macd_signal":-8.234,"macd_hist":1.577,"ema20":357.70,"ema50":367.02,"bb_position":0.62,"vol_ratio":1.2,"range_position":68.5,"pe":49.75,"pb":5.26,"beta":0.87,"profit_margin":18.15,"roe":15.0,"debt_equity":23.8,"rec_mean":2.2,"wk_low":167.00,"wk_high":450.00,"reasons":["✅ RSI 55.0 güçlü","✅ MACD histogram pozitif","✅ Hacim yüksek","⚠️ F/K 49.8 yüksek"],"analysis":"Aselsan teknik olarak güçlü sinyaller veriyor. Savunma sektöründeki büyüme beklentileri pozitif."},
-        {"code":"KCHOL","name":"Koç Holding","sector":"Holding","price":195.90,"change":-4.90,"technicalScore":38,"fundamentalScore":37,"totalScore":75,"sentiment":"positive","rsi":48.8,"macd":1.343,"macd_signal":0.456,"macd_hist":0.887,"ema20":196.56,"ema50":195.51,"bb_position":0.52,"vol_ratio":2.3,"range_position":52.8,"pe":20.63,"pb":0.70,"beta":1.00,"profit_margin":1.18,"roe":6.4,"debt_equity":123.0,"rec_mean":1.2,"wk_low":146.00,"wk_high":229.10,"reasons":["⚪ RSI nötr","✅ MACD pozitif","❌ Hacim yüksek ama düşüş","⚠️ Borç/ÖK yüksek","✅ Analist: Güçlü Al"],"analysis":"Koç Holding karışık sinyaller veriyor. MACD pozitif ancak yüksek hacimli satış baskısı var."},
-      ];
-      init();
+function loadData(isInitial = false) {
+  fetch('bist_analysis_results.json?t=' + new Date().getTime())
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(data => {
+      stocksData = data;
+      document.getElementById('last-update').textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      updateStats();
+      applyFilters();
+    })
+    .catch(() => {
+      if (isInitial && stocksData.length === 0) {
+        // Demo veri (gerçek dosya henüz oluşmamışsa)
+        stocksData = [
+          {"code":"GARAN","name":"Garanti BBVA","sector":"Bankacılık","price":127.80,"change":-1.46,"technicalScore":35,"fundamentalScore":49,"totalScore":84,"sentiment":"positive","rsi":52.0,"macd":-1.162,"macd_signal":-2.123,"macd_hist":0.961,"ema20":128.29,"ema50":130.47,"bb_position":0.45,"vol_ratio":1.0,"range_position":25.5,"pe":4.43,"pb":1.10,"beta":0.51,"profit_margin":31.57,"roe":28.13,"debt_equity":0.0,"rec_mean":1.5,"wk_low":115.40,"wk_high":169.70,"reasons":["✅ RSI 52.0 güçlü momentum","✅ MACD histogram pozitif","❌ Fiyat EMA 50 altında","✅ F/K 4.4 ucuz","✅ ROE %28.1 güçlü","✅ Analist: Güçlü Al"],"analysis":"Garanti BBVA güçlü temel verilere sahip. F/K 4.4 ile değerlemesi makul. ROE %28.1 ile sektörün üzerinde."},
+          {"code":"ASELS","name":"Aselsan","sector":"Savunma","price":363.00,"change":4.69,"technicalScore":42,"fundamentalScore":34,"totalScore":76,"sentiment":"positive","rsi":55.0,"macd":-6.657,"macd_signal":-8.234,"macd_hist":1.577,"ema20":357.70,"ema50":367.02,"bb_position":0.62,"vol_ratio":1.2,"range_position":68.5,"pe":49.75,"pb":5.26,"beta":0.87,"profit_margin":18.15,"roe":15.0,"debt_equity":23.8,"rec_mean":2.2,"wk_low":167.00,"wk_high":450.00,"reasons":["✅ RSI 55.0 güçlü","✅ MACD histogram pozitif","✅ Hacim yüksek","⚠️ F/K 49.8 yüksek"],"analysis":"Aselsan teknik olarak güçlü sinyaller veriyor. Savunma sektöründeki büyüme beklentileri pozitif."},
+          {"code":"KCHOL","name":"Koç Holding","sector":"Holding","price":195.90,"change":-4.90,"technicalScore":38,"fundamentalScore":37,"totalScore":75,"sentiment":"positive","rsi":48.8,"macd":1.343,"macd_signal":0.456,"macd_hist":0.887,"ema20":196.56,"ema50":195.51,"bb_position":0.52,"vol_ratio":2.3,"range_position":52.8,"pe":20.63,"pb":0.70,"beta":1.00,"profit_margin":1.18,"roe":6.4,"debt_equity":123.0,"rec_mean":1.2,"wk_low":146.00,"wk_high":229.10,"reasons":["⚪ RSI nötr","✅ MACD pozitif","❌ Hacim yüksek ama düşüş","⚠️ Borç/ÖK yüksek","✅ Analist: Güçlü Al"],"analysis":"Koç Holding karışık sinyaller veriyor. MACD pozitif ancak yüksek hacimli satış baskısı var."}
+        ];
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        updateStats();
+        applyFilters();
+      }
     });
-} catch(e) {
-  init();
 }
+
+function init() {
+  loadData(true);
+  // Her 30 saniyede bir otomatik kontrol ve yenileme
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(() => loadData(false), 30000);
+}
+
+window.addEventListener('DOMContentLoaded', init);
 
 let currentFilter = 'all';
 let currentSort = 'score-desc';
@@ -399,12 +417,6 @@ function getSentimentLabel(s) {
 }
 function getSentimentEmoji(s) {
   return {positive:'🟢',negative:'🔴',neutral:'⚪'}[s]||'⚪';
-}
-
-function init() {
-  document.getElementById('last-update').textContent = new Date().toLocaleString('tr-TR');
-  updateStats();
-  applyFilters();
 }
 
 function updateStats() {

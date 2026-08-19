@@ -16,13 +16,25 @@ Yazar: AI Asistan
 Tarih: 2026-08-08
 """
 
+import argparse
 import json
+import sys
 import time
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
+
+from data_providers.aggregator import StockDataAggregator
+
+# Windows konsol UTF-8 çıktı desteği
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 # ============================================
 # BIST 100 HİSSE LİSTESİ (Yahoo Finance .IS suffix)
@@ -395,22 +407,58 @@ def generate_analysis(stock_data):
 # ============================================
 
 
-def analyze_stock(ticker, meta, period="6mo"):
-    """Tek bir hisseyi analiz et"""
+def analyze_stock(ticker, meta, period="6mo", aggregator=None):
+    """Tek bir hisseyi analiz et (çoklu veri sağlayıcıları destekler)"""
     try:
         print(f"  📊 {meta['code']} analiz ediliyor...", end=" ")
 
-        # Veri çek
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period=period)
-        info = stock.info
+        if aggregator is not None:
+            aggregated = aggregator.fetch_full_stock_data(ticker, meta, period=period)
+            if aggregated is None:
+                print("❌ Yetersiz veri")
+                return None
 
-        if hist.empty or len(hist) < 50:
-            print("❌ Yetersiz veri")
-            return None
+            price_data = aggregated["price_data"]
+            fundamental = aggregated["fundamental"]
+            tv_summary = aggregated.get("tv_summary")
 
-        close = hist["Close"].values
-        volume = hist["Volume"].values
+            close = price_data.close
+            volume = price_data.volume
+            wk_low = price_data.fifty_two_week_low
+            wk_high = price_data.fifty_two_week_high
+            daily_change = price_data.daily_change_pct
+
+            pe = fundamental.pe
+            pb = fundamental.pb
+            beta = fundamental.beta
+            profit_margin = fundamental.profit_margin
+            roe = fundamental.roe
+            debt_equity = fundamental.debt_equity
+            rec_mean = fundamental.rec_mean
+        else:
+            # Standart doğrudan akış
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=period)
+            info = getattr(stock, "info", {}) or {}
+
+            if hist.empty or len(hist) < 50:
+                print("❌ Yetersiz veri")
+                return None
+
+            close = hist["Close"].values
+            volume = hist["Volume"].values
+            wk_low = safe_float(info.get("fiftyTwoWeekLow", close[-1]))
+            wk_high = safe_float(info.get("fiftyTwoWeekHigh", close[-1]))
+            daily_change = (close[-1] - close[-2]) / close[-2] * 100.0
+
+            pe = safe_float(info.get("trailingPE", 0))
+            pb = safe_float(info.get("priceToBook", 0))
+            beta = safe_float(info.get("beta", 1))
+            profit_margin = safe_float(info.get("profitMargins", 0)) * 100.0
+            roe = safe_float(info.get("returnOnEquity", 0)) * 100.0
+            debt_equity = safe_float(info.get("debtToEquity", 0))
+            rec_mean = safe_float(info.get("recommendationMean", 3))
+            tv_summary = None
 
         # Teknik göstergeler
         rsi = calculate_rsi(close)
@@ -421,20 +469,7 @@ def analyze_stock(ticker, meta, period="6mo"):
 
         vol_10d = np.mean(volume[-10:])
         vol_ratio = volume[-1] / (vol_10d + 1e-10)
-        daily_change = (close[-1] - close[-2]) / close[-2] * 100
-
-        wk_low = info.get("fiftyTwoWeekLow", close[-1])
-        wk_high = info.get("fiftyTwoWeekHigh", close[-1])
-        range_position = (close[-1] - wk_low) / (wk_high - wk_low + 1e-10) * 100
-
-        # Temel veriler
-        pe = safe_float(info.get("trailingPE", 0))
-        pb = safe_float(info.get("priceToBook", 0))
-        beta = safe_float(info.get("beta", 1))
-        profit_margin = safe_float(info.get("profitMargins", 0)) * 100
-        roe = safe_float(info.get("returnOnEquity", 0)) * 100
-        debt_equity = safe_float(info.get("debtToEquity", 0))
-        rec_mean = safe_float(info.get("recommendationMean", 3))
+        range_position = (close[-1] - wk_low) / (wk_high - wk_low + 1e-10) * 100.0
 
         # Skorlama
         tech_score = calculate_technical_score(
@@ -444,7 +479,7 @@ def analyze_stock(ticker, meta, period="6mo"):
         total_score = tech_score + fund_score
 
         # Sentiment
-        if total_score >= 70 or total_score >= 50:
+        if total_score >= 50:
             sentiment = "positive"
         elif total_score >= 35:
             sentiment = "neutral"
@@ -481,6 +516,14 @@ def analyze_stock(ticker, meta, period="6mo"):
             "wk_high": round(wk_high, 2),
         }
 
+        if tv_summary is not None:
+            result["tv_recommendation"] = tv_summary.recommendation
+            result["tv_signals"] = {
+                "buy": tv_summary.buy_signals,
+                "sell": tv_summary.sell_signals,
+                "neutral": tv_summary.neutral_signals,
+            }
+
         result["reasons"] = generate_reasons(result)
         result["analysis"] = generate_analysis(result)
 
@@ -492,7 +535,7 @@ def analyze_stock(ticker, meta, period="6mo"):
         return None
 
 
-def run_analysis(stock_list=None, output_file="bist_analysis_results.json"):
+def run_analysis(stock_list=None, output_file="bist_analysis_results.json", aggregator=None, delay=0.3):
     """Tüm hisseleri analiz et ve sonuçları kaydet"""
     if stock_list is None:
         stock_list = BIST100_STOCKS
@@ -500,7 +543,7 @@ def run_analysis(stock_list=None, output_file="bist_analysis_results.json"):
     print("=" * 70)
     print("BIST 100 PROFESYONEL ANALİZ SİSTEMİ")
     print("=" * 70)
-    print(f"Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Analiz edilecek hisse sayısı: {len(stock_list)}")
     print("-" * 70)
 
@@ -509,12 +552,13 @@ def run_analysis(stock_list=None, output_file="bist_analysis_results.json"):
 
     for i, (ticker, meta) in enumerate(stock_list.items(), 1):
         print(f"[{i}/{len(stock_list)}]", end="")
-        result = analyze_stock(ticker, meta)
+        result = analyze_stock(ticker, meta, aggregator=aggregator)
         if result:
             results.append(result)
         else:
             failed.append(meta["code"])
-        time.sleep(0.5)  # Rate limit koruması
+        if delay > 0:
+            time.sleep(delay)
 
     # Skora göre sırala
     results.sort(key=lambda x: x["totalScore"], reverse=True)
@@ -545,14 +589,68 @@ def run_analysis(stock_list=None, output_file="bist_analysis_results.json"):
     return results
 
 
+def start_watch_mode(stock_list=None, output_file="bist_analysis_results.json", interval_minutes=15):
+    """Belirtilen dakika aralığıyla analizleri otomatik güncelleyen canlı izleme modu."""
+    print("=" * 70)
+    print(f"🔄 CANLI İZLEME MODU AKTİF (Her {interval_minutes} dakikada bir güncellenir)")
+    print("Çıkmak için: Ctrl + C")
+    print("=" * 70)
+
+    aggregator = StockDataAggregator()
+    iteration = 1
+
+    try:
+        while True:
+            print(f"\n🕒 [{datetime.now().strftime('%H:%M:%S')}] Döngü #{iteration} başlatılıyor...")
+            run_analysis(stock_list=stock_list, output_file=output_file, aggregator=aggregator)
+            iteration += 1
+            print(f"⏳ Sonraki güncelleme için {interval_minutes} dakika bekleniyor...")
+            time.sleep(interval_minutes * 60)
+    except KeyboardInterrupt:
+        print("\n\n🛑 Canlı izleme modu kullanıcı tarafından durduruldu.")
+        sys.exit(0)
+
+
 # ============================================
-# ÇALIŞTIRMA
+# ÇALIŞTIRMA VE CLI PARAMETRELERİ
 # ============================================
+
+
+def main():
+    parser = argparse.ArgumentParser(description="BIST 100 Profesyonel Hisse Analiz Sistemi")
+    parser.add_argument(
+        "--watch", action="store_true", help="Canlı izleme modunu etkinleştirir (periyodik otomatik güncelleme)"
+    )
+    parser.add_argument(
+        "--interval", type=int, default=15, help="Canlı izleme modu güncelleme sıklığı (dakika, varsayılan: 15)"
+    )
+    parser.add_argument("--output", type=str, default="bist_analysis_results.json", help="Çıktı JSON dosya yolu")
+    parser.add_argument(
+        "--stocks",
+        type=str,
+        default=None,
+        help="Yalnızca belirli hisseleri analiz etmek için virgülle ayrılmış kodlar (örn: THYAO,GARAN,ASELS)",
+    )
+
+    args = parser.parse_args()
+
+    selected_stocks = BIST100_STOCKS
+    if args.stocks:
+        codes = [c.strip().upper() for c in args.stocks.split(",")]
+        selected_stocks = {k: v for k, v in BIST100_STOCKS.items() if v["code"] in codes}
+        if not selected_stocks:
+            print(f"❌ Belirtilen kodlarla eşleşen hisse bulunamadı: {args.stocks}")
+            sys.exit(1)
+
+    if args.watch:
+        start_watch_mode(
+            stock_list=selected_stocks,
+            output_file=args.output,
+            interval_minutes=args.interval,
+        )
+    else:
+        run_analysis(stock_list=selected_stocks, output_file=args.output)
+
 
 if __name__ == "__main__":
-    # Tüm listeyi analiz et
-    results = run_analysis()
-
-    # VEYA sadece belirli hisseleri analiz et:
-    # selected = {k: v for k, v in BIST100_STOCKS.items() if v['code'] in ['THYAO', 'GARAN']}
-    # results = run_analysis(selected)
+    main()

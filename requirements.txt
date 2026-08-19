@@ -6,3 +6,5 @@ pandas>=2.0.0
 numpy>=1.24.0
 pytest>=8.0.0
 ruff>=0.4.0
+isyatirimhisse>=5.0.0
+tradingview-ta>=3.3.0

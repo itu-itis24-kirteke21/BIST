@@ -37,11 +37,23 @@ pytest -x
 ### Test Mimarisi ve Dosya Yapısı
 
 * `tests/conftest.py`: Ortak fixture'lar (yükselen/düşen/dalgalı fiyat serileri, yfinance DataFrame şablonları, mock Ticker fabrikası ve temel veri sözlükleri).
+* `tests/test_data_providers.py`: Çoklu veri sağlayıcıları (`YahooFinanceProvider`, `IsYatirimProvider`, `TradingViewProvider`) ve `StockDataAggregator` zenginleştirme testleri.
 * `tests/test_technical_indicators.py`: RSI, MACD, EMA20/50, Bollinger Bantları hesaplama testleri.
 * `tests/test_scoring.py`: Teknik (0-50) ve Temel (0-50) skorlama motoru kademe ve sınır testleri.
 * `tests/test_helpers_and_text.py`: `safe_float`, otomatik Türkçe gerekçe üretimi (`generate_reasons`) ve özet analiz metni (`generate_analysis`) testleri.
-* `tests/test_analyzer_pipeline.py`: Tekil analiz (`analyze_stock`), toplu analiz (`run_analysis`), hata yakalama, sentiment sınıflandırması ve JSON dışa aktarma testleri (Yahoo Finance mock'lanarak dış ağa bağımlı olmadan çalışır).
+* `tests/test_analyzer_pipeline.py`: Tekil analiz (`analyze_stock`), toplu analiz (`run_analysis`), hata yakalama, sentiment sınıflandırması ve JSON dışa aktarma testleri.
 * `tests/test_config.py`: `stocks_config.json` ve `BIST100_STOCKS` hisse yapılandırma ve `.IS` ticker formatı doğrulama testleri.
+
+---
+
+## 🌐 Çoklu Veri Sağlayıcı Mimarisi (Data Providers)
+
+Sistem tek bir API'ye bağımlı kalmamak ve eksik/bozuk verileri önlemek için **Hibrit Toplayıcı (Aggregator)** deseni kullanır:
+
+1. **`YahooFinanceProvider`**: 6 aylık geçmiş fiyat/hacim (OHLCV) ve teknik hesaplamalar için birincil sağlayıcı.
+2. **`IsYatirimProvider`** (`isyatirimhisse`): Yahoo Finance üzerinde eksik kalan BIST bilanço rasyolarını (F/K, PD/DD, ROE, Borç/Özkaynak) tamamlayan resmi yerel sağlayıcı.
+3. **`TradingViewProvider`** (`tradingview-ta`): TradingView osilatörleri üzerinden anlık canlı konsensüs (Strong Buy, Buy, Sell) sağlayan sağlayıcı.
+4. **`StockDataAggregator`**: Sağlayıcıları sırayla çalıştırıp eksik kalan rasyoları otomatik birleştiren ve zenginleştiren toplayıcı.
 
 ---
 
@@ -75,25 +87,37 @@ git push --no-verify
 ### Dosya Yapısı
 
 ```
+data_providers/             # Çoklu veri sağlayıcıları paketi
+├── base.py                 # BaseDataProvider soyut sınıfı ve veri modelleri
+├── yahoo_provider.py       # Yahoo Finance sağlayıcısı
+├── isyatirim_provider.py   # İş Yatırım temel veri sağlayıcısı
+├── tradingview_provider.py # TradingView canlı sinyal sağlayıcısı
+└── aggregator.py           # Hibrit veri toplayıcı ve zenginleştirici
 hooks/                      # Version-controlled hook kaynak dosyaları
-├── pre-commit              # Commit öncesi pytest çalıştırır
-└── pre-push                # Push öncesi pytest -v çalıştırır
+├── pre-commit              # Commit öncesi lint, format ve pytest çalıştırır
+└── pre-push                # Push öncesi detaylı kontrolleri çalıştırır
 scripts/
 └── setup-hooks.ps1         # Hook'ları .git/hooks/'a kopyalayan kurulum scripti
 ```
 
 ---
 
-## 🚀 Projeyi Çalıştırma
+## 🚀 Projeyi Çalıştırma ve Canlı İzleme
 
 ```bash
 # 1. Bağımlılıkları yükleme
 pip install -r requirements.txt
 
-# 2. Analiz scriptini çalıştırma (bist_analysis_results.json üretir)
+# 2. Tek seferlik analiz çalıştırma
 python bist_analyzer.py
 
-# 3. Web Dashboard'u açma (tarayıcıda doğrudan açılabilir)
+# 3. Yalnızca belirli hisseleri analiz etme
+python bist_analyzer.py --stocks THYAO,GARAN,ASELS
+
+# 4. Canlı İzleme Modu (Her 15 dakikada bir otomatik güncelleme)
+python bist_analyzer.py --watch --interval 15
+
+# 5. Web Dashboard'u açma (tarayıcıda doğrudan açılabilir, 30sn'de bir kendini günceller)
 # Windows:
 start bist_dashboard.html
 # Mac:
