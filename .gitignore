@@ -21,3 +21,12 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+### Python ###
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+### Analysis Output ###
+bist_analysis_results.json

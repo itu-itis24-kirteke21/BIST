@@ -67,6 +67,8 @@ BIST100_STOCKS = {
 
 def calculate_rsi(prices, period=14):
     """RSI (Relative Strength Index) hesaplama"""
+    if len(prices) <= period:
+        return 50.0
     delta = np.diff(prices)
     gain = np.where(delta > 0, delta, 0)
     loss = np.where(delta < 0, -delta, 0)
@@ -74,7 +76,7 @@ def calculate_rsi(prices, period=14):
     avg_loss = np.convolve(loss, np.ones(period)/period, mode='valid')
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-    return rsi[-1] if len(rsi) > 0 else 50
+    return rsi[-1] if len(rsi) > 0 else 50.0
 
 def calculate_macd(prices):
     """MACD (Moving Average Convergence Divergence) hesaplama"""
@@ -510,23 +512,20 @@ def run_analysis(stock_list=None, output_file="bist_analysis_results.json"):
         json.dump(results, f, ensure_ascii=False, indent=2)
 
     # Özet rapor
-    print("
-" + "=" * 70)
+    print("\n" + "=" * 70)
     print("ANALİZ TAMAMLANDI")
     print("=" * 70)
     print(f"Başarılı: {len(results)} | Başarısız: {len(failed)}")
     if failed:
         print(f"Başarısız hisseler: {', '.join(failed)}")
 
-    print(f"
-{'Hisse':<8} {'Fiyat':>10} {'Değ.':>7} {'Teknik':>7} {'Temel':>7} {'Toplam':>7} {'Durum':<10}")
+    print(f"\n{'Hisse':<8} {'Fiyat':>10} {'Değ.':>7} {'Teknik':>7} {'Temel':>7} {'Toplam':>7} {'Durum':<10}")
     print("-" * 70)
     for r in results:
         status = "🟢 OLUMLU" if r['sentiment'] == 'positive' else "🔴 OLUMSUZ" if r['sentiment'] == 'negative' else "⚪ NÖTR"
         print(f"{r['code']:<8} {r['price']:>10.2f} {r['change']:>+6.1f}% {r['technicalScore']:>7} {r['fundamentalScore']:>7} {r['totalScore']:>7} {status:<10}")
 
-    print(f"
-📁 Sonuçlar kaydedildi: {output_file}")
+    print(f"\n📁 Sonuçlar kaydedildi: {output_file}")
     return results
 
 # ============================================
