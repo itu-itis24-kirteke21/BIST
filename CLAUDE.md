@@ -102,6 +102,43 @@ open bist_dashboard.html
 
 ---
 
+## 🔍 Ruff Linter & Formatter (PEP8 + Kod Kalitesi)
+
+Bu proje, [Ruff](https://docs.astral.sh/ruff/) ile hem linting (hata/stil kontrolü) hem formatting (otomatik biçimlendirme) yapar. Yapılandırma `ruff.toml` dosyasındadır.
+
+### Aktif Kural Setleri
+
+| Kural | Açıklama |
+|---|---|
+| `E` / `W` | pycodestyle hataları ve uyarıları (PEP8) |
+| `F` | pyflakes (kullanılmayan import, tanımsız değişken vb.) |
+| `I` | isort (import sıralama ve gruplama) |
+| `UP` | pyupgrade (modern Python dönüşümleri) |
+| `B` | flake8-bugbear (yaygın programlama hataları) |
+| `SIM` | flake8-simplify (basitleştirilebilir ifadeler) |
+
+### Komutlar
+
+```bash
+# Lint kontrolü (sadece kontrol, değişiklik yapmaz)
+ruff check .
+
+# Lint hatalarını otomatik düzelt
+ruff check --fix .
+
+# Format kontrolü (sadece kontrol)
+ruff format --check .
+
+# Otomatik formatlama
+ruff format .
+```
+
+> [!NOTE]
+> Git pre-commit hook'u `ruff check` ve `ruff format --check` adımlarını otomatik çalıştırır.
+> Lint veya format hatası varsa commit yapılamaz.
+
+---
+
 ## 📐 Geliştirme ve Kodlama Standartları
 
 1. **Dış API Çağrılarında Mock Kullanımı**: `yfinance` veya harici veri kaynakları test edilirken gerçek ağ istekleri yapılmamalı; `conftest.py` içerisindeki `mock_ticker_factory` ve `unittest.mock.patch` kullanılmalıdır.
@@ -111,3 +148,7 @@ open bist_dashboard.html
    - `50 - 100`: 🟢 `positive` (Olumlu)
    - `35 - 49`: ⚪ `neutral` (Nötr)
    - `< 35`: 🔴 `negative` (Olumsuz)
+5. **Bare `except` Yasağı**: `except:` yerine her zaman `except (TypeError, ValueError):` gibi belirli istisna türleri kullanılmalıdır (E722).
+6. **Import Sırası**: Ruff isort kurallarına uyulmalıdır — standart kütüphane → üçüncü parti → yerel modüller sırası.
+7. **Satır Uzunluğu**: Maksimum 120 karakter (`ruff.toml` ile yapılandırılmıştır).
+

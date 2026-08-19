@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
+
 from bist_analyzer import (
-    calculate_rsi,
-    calculate_macd,
-    calculate_ema,
     calculate_bollinger,
+    calculate_ema,
+    calculate_macd,
+    calculate_rsi,
 )
 
 
@@ -41,7 +42,7 @@ class TestCalculateRSI:
     def test_rsi_flat_prices(self, sample_prices_flat):
         """Sabit fiyatta sıfıra bölünme hatası vermeden geçerli bir değer ürettiğini doğrular."""
         rsi = calculate_rsi(sample_prices_flat)
-        assert isinstance(rsi, (float, np.floating))
+        assert isinstance(rsi, float | np.floating)
         assert 0.0 <= rsi <= 100.0
 
     def test_rsi_insufficient_data(self):
@@ -56,9 +57,9 @@ class TestCalculateMACD:
     def test_macd_returns_three_floats(self, sample_prices_uptrend):
         """MACD fonksiyonunun 3 sayısal değer (macd, signal, hist) döndürdüğünü doğrular."""
         macd, signal, hist = calculate_macd(sample_prices_uptrend)
-        assert isinstance(macd, (float, np.floating))
-        assert isinstance(signal, (float, np.floating))
-        assert isinstance(hist, (float, np.floating))
+        assert isinstance(macd, float | np.floating)
+        assert isinstance(signal, float | np.floating)
+        assert isinstance(hist, float | np.floating)
 
     def test_macd_histogram_relation(self, sample_prices_oscillating):
         """MACD histogramının macd - signal farkına eşit olduğunu doğrular."""
@@ -83,8 +84,8 @@ class TestCalculateEMA:
         """EMA20 ve EMA50 hesaplamalarının geçerli float değerler ürettiğini doğrular."""
         ema20 = calculate_ema(sample_prices_uptrend, 20)
         ema50 = calculate_ema(sample_prices_uptrend, 50)
-        assert isinstance(ema20, (float, np.floating))
-        assert isinstance(ema50, (float, np.floating))
+        assert isinstance(ema20, float | np.floating)
+        assert isinstance(ema50, float | np.floating)
 
     def test_ema_uptrend_alignment(self, sample_prices_uptrend):
         """Yükselen trendde EMA20'nin EMA50'den büyük olduğunu doğrular."""
@@ -106,7 +107,7 @@ class TestCalculateBollinger:
         """Üst bandın alt banttan büyük olduğunu doğrular."""
         upper, lower, position = calculate_bollinger(sample_prices_oscillating)
         assert upper > lower
-        assert isinstance(position, (float, np.floating))
+        assert isinstance(position, float | np.floating)
 
     def test_bollinger_position_formula(self, sample_prices_uptrend):
         """Bollinger bant pozisyonunun (fiyat - alt) / (üst - alt) formülüne uyduğunu doğrular."""

@@ -2,15 +2,11 @@
 # ==========================================================
 # BIST 100 Analiz Sistemi - Pre-Commit Hook
 # ==========================================================
-# Bu hook, her git commit oncesinde pytest'i calistirir.
-# Testler basarisiz olursa commit islemine izin verilmez.
-#
-# Kurulum:
-#   cp hooks/pre-commit .git/hooks/pre-commit
-#   chmod +x .git/hooks/pre-commit
-#
-# veya PowerShell:
-#   Copy-Item hooks/pre-commit .git/hooks/pre-commit
+# Bu hook, her git commit oncesinde:
+#   1. Ruff linter kontrolu (PEP8 + import sirasi + bugbear)
+#   2. Ruff format kontrolu (Black-uyumlu stil)
+#   3. Pytest (fonksiyonel testler)
+# calistirir. Herhangi biri basarisiz olursa commit engellenir.
 #
 # Atlamak icin (acil durumlarda):
 #   git commit --no-verify -m "mesaj"
@@ -18,30 +14,56 @@
 
 echo ""
 echo "==========================================="
-echo "  BIST Pre-Commit: Testler calistiriliyor"
+echo "  BIST Pre-Commit: Kontroller basliyor"
 echo "==========================================="
+
+# ----------------------------------------------------------
+# 1. Ruff Lint Kontrolu
+# ----------------------------------------------------------
 echo ""
+echo "  [1/3] Ruff lint kontrolu..."
+python -m ruff check .
 
-# pytest'i calistir
-python -m pytest --tb=short -q
-
-# Cikis kodunu kontrol et
 if [ $? -ne 0 ]; then
     echo ""
+    echo "  COMMIT IPTAL: Lint hatalari bulundu!"
+    echo "  Duzeltmek icin: ruff check --fix ."
     echo "==========================================="
-    echo "  COMMIT IPTAL EDILDI!"
-    echo "  Testler basarisiz oldu."
+    exit 1
+fi
+echo "        Lint temiz."
+
+# ----------------------------------------------------------
+# 2. Ruff Format Kontrolu
+# ----------------------------------------------------------
+echo "  [2/3] Ruff format kontrolu..."
+python -m ruff format --check .
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "  COMMIT IPTAL: Format uyumsuzluklari bulundu!"
+    echo "  Duzeltmek icin: ruff format ."
+    echo "==========================================="
+    exit 1
+fi
+echo "        Format temiz."
+
+# ----------------------------------------------------------
+# 3. Pytest
+# ----------------------------------------------------------
+echo "  [3/3] Pytest calistiriliyor..."
+python -m pytest --tb=short -q
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "  COMMIT IPTAL: Testler basarisiz!"
     echo "  Hatalari duzeltip tekrar commit edin."
-    echo ""
-    echo "  Acil atlamak icin:"
-    echo "    git commit --no-verify -m \"mesaj\""
     echo "==========================================="
-    echo ""
     exit 1
 fi
 
 echo ""
-echo "  Tum testler basarili - commit devam ediyor."
+echo "  Tum kontroller basarili - commit devam ediyor."
 echo "==========================================="
 echo ""
 exit 0

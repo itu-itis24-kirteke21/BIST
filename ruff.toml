@@ -1,0 +1,47 @@
+# ==========================================================
+# BIST 100 Analiz Sistemi - Ruff Yapılandırması
+# ==========================================================
+
+# Hedef Python sürümü
+target-version = "py312"
+
+# Maksimum satır uzunluğu
+line-length = 120
+
+# Kontrol edilecek dizinler
+include = ["*.py"]
+
+[lint]
+# Aktif kural setleri
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sıralaması)
+    "UP",   # pyupgrade (modern Python kullanımı)
+    "B",    # flake8-bugbear (yaygın hatalar)
+    "SIM",  # flake8-simplify (basitleştirilebilir ifadeler)
+]
+
+# Görmezden gelinecek kurallar
+ignore = [
+    "E501",   # satır uzunluğu — formatter halleder
+    "B905",   # zip() strict parametresi — geriye uyumluluk
+    "SIM108", # ternary kullanımı — okunabilirlik tercihi
+]
+
+# Dosya bazlı istisnalar
+[lint.per-file-ignores]
+"tests/*" = [
+    "B011",  # assert False kullanımı testlerde normal
+    "SIM300", # yoda conditions testlerde okunabilir
+]
+
+[lint.isort]
+known-first-party = ["bist_analyzer"]
+
+[format]
+# Black-uyumlu format stili
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
